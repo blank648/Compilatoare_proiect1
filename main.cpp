@@ -20,7 +20,7 @@ enum class TokenType {
 //fiecare bucata de cod pe care o idnetificam este stocata aici
 
 struct Token {
-    std::string lexme;//sir de caractere efectiv
+    std::string lexeme;//sir de caractere efectiv
     TokenType type;//tip token
     int start_line;//linia din fisier la care incepe tokenul
     int end_line;
@@ -92,14 +92,14 @@ int main() {
     Token token;
     while ((token = getNextToken(sourceCode, position, currentLine)).type != TokenType::END_OF_FILE) {
         //afisam informatiile despre token
-        std::cout << "'" << token.lexme << "'"
-        << tokenTypeToString(token.type) << "'"
-        << token.lexme.length() << "'";
+        std::cout << "'" << token.lexeme << ";"
+        << tokenTypeToString(token.type) << ";"
+        << token.lexeme.length() << ";";
 
         if (token.start_line == token.end_line) {
             std::cout << "linia " << token.start_line << std::endl;
         }else {
-            std::cout << "linia " << token.start_line << token.end_line << std::endl;
+            std::cout << "liniile " << token.start_line << "-" << token.end_line << std::endl;
         }
 
     }
