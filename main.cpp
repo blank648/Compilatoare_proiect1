@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <cctype>
+#include <algorithm>
 
 //folosim o enumerare pentru a defini tipurile posibile de tokeni
 enum class TokenType {
@@ -28,11 +29,10 @@ struct Token {
 };
 
 //functie helper. transforma o valoare de tip TokenType intr-un string ( TokenType::KEYWORD -> key_word )
-//util pentru formatarea finala
 std::string tokenTypeToString(TokenType type) {
     switch (type) {
         case TokenType::KEYWORD:
-            return "keyword";
+            return "key_word";
         case TokenType::IDENTIFIER:
             return "identifier";
         case TokenType::INT_CONSTANT:
@@ -80,7 +80,7 @@ Token scanNumber( const std::string&source, int& position, int line ) {
         position++;
     }
 
-    if(position + 1 < source.length() && source[position + 1] == '.') {
+    if(position < source.length() && source[position] == '.') {
         if( position + 1 < source.length() && isdigit(source[position + 1]) ) {
             is_float = true;
             position++;
@@ -93,6 +93,70 @@ Token scanNumber( const std::string&source, int& position, int line ) {
     TokenType type = is_float ? TokenType::FLOAT_CONSTANT : TokenType::INT_CONSTANT;
     return {lexeme, type, line, line};
 }
+
+Token scanOperator(const std::string& source, int& position, int line) {
+    int start_pos = position;
+    char first_char = source[start_pos];
+
+    if (first_char == '=' || first_char == '!') {
+        if (position + 1 < source.length() && source[position + 1] == '=') {
+            position += 2; // '==' sau '!='
+        } else {
+            position += 1; // '='
+        }
+    } else if (first_char == '+') {
+        if (position + 1 < source.length() && source[position + 1] == '+') {
+            position += 2; // '++'
+        } else {
+            position += 1; // '+'
+        }
+    } else if (first_char == '-') {
+        if (position + 1 < source.length() && source[position + 1] == '-') {
+            position += 2; // '--'
+        } else {
+            position += 1; // '-'
+        }
+    } else {
+        position++;
+    }
+    std::string lexeme = source.substr(start_pos, position - start_pos);
+    return {lexeme, TokenType::OPERATOR, line, line};
+}
+
+Token scanComment(const std::string& source, int& position, int& currentLine) {
+    int start_pos = position;
+    int start_line = currentLine;
+    if (source[position + 1] == '/') {
+        position += 2;
+        while (position < source.length() && source[position] != '\n') {
+            position++;
+        }
+        std::string lexeme = source.substr(start_pos, position - start_pos);
+        return {lexeme, TokenType::COMMENT, start_line, currentLine};
+    } else if (source[position + 1] == '*') {
+        position += 2;
+
+        while (position + 1 < source.length() && !(source[position] == '*' && source[position + 1] == '/')) {
+            if (source[position] == '\n') {
+                currentLine++;
+            }
+            position++;
+        }
+
+        if (position + 1 >= source.length()) {
+            std::cerr << "Eroare la linia " << start_line << ": Comentariu multi-linie neterminat." << std::endl;
+            return {"Comentariu neterminat", TokenType::ERROR, start_line, currentLine};
+        }
+
+        position += 2;
+        std::string lexeme = source.substr(start_pos, position - start_pos);
+        return {lexeme, TokenType::COMMENT, start_line, currentLine};
+    }
+    // doaroperatorul /
+    position++;
+    return {"/", TokenType::OPERATOR, start_line, start_line};
+}
+
 
 Token getNextToken(const std::string& source, int& position, int& current_line) {
     //1.sar peste spatii, tab-uri si linii noi
@@ -123,8 +187,18 @@ Token getNextToken(const std::string& source, int& position, int& current_line) 
         return {std::string(1, current_char), TokenType::DELIMITATOR, current_line, current_line};
     }
 
-    position++;
+    if(current_char == '/') {
+        if(position + 1 < source.length() && source[position + 1] == '/' || source[position + 1] == '*') {
+            return scanComment(source, position, current_line);
+        }
+    }
+
+    if(current_char == '+' || current_char == '-' || current_char == '=' || current_char == '/' || current_char == '*') {
+        return scanOperator(source, position, current_line);
+    }
+
     std::cerr << "Eroare lexicala la linia " << current_line << ": Caracter necunoscut " << current_char << std::endl;
+    position++;
     return {std::string(1, current_char), TokenType::ERROR, current_line, current_line};
 
 }
@@ -165,33 +239,19 @@ int main() {
     //se opreste doaratunciu cand functia returneaza un token special END_OF_FILE
     Token token;
     while ((token = getNextToken(sourceCode, position, currentLine)).type != TokenType::END_OF_FILE) {
-        //afisam informatiile despre token
-        if( token.type != TokenType::ERROR ) {
-            std::cout << "'" << token.lexeme << "; "
-            << tokenTypeToString(token.type) << "; "
-            << token.lexeme.length() << "; "
-            << "linia " << token.start_line << std::endl;
-
+        if (token.type != TokenType::ERROR) {
+            std::cout << "'" << token.lexeme << "', "
+                     << tokenTypeToString(token.type) << "; "
+                     << token.lexeme.length() << "; ";
             if (token.start_line == token.end_line) {
                 std::cout << "linia " << token.start_line << std::endl;
-            }else {
+            } else {
                 std::cout << "liniile " << token.start_line << "-" << token.end_line << std::endl;
             }
         }
-
     }
 
     std::cout << "\n Scanare Finalizata." << std::endl;
 
     return 0;
 }
-/*
-Token getNextToken(const std::string& source, int& position, int& current_line) {
-    if(position >= source.length()) {
-        return {"", TokenType::END_OF_FILE, current_line, current_line};
-    }
-
-    position = source.length();
-
-    return {"placeholder", TokenType::IDENTIFIER, 1, 1};
-}*/

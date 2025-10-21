@@ -1,4 +1,9 @@
-void main() {
-    int beta123_c;
-    float val = 13.78;
+// Program de test
+int main() {
+    int a = 10;
+    /* Comentariu
+       pe mai multe linii */
+    if (a == 10) {
+        a++;
+    }
 }
