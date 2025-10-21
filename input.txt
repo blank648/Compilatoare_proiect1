@@ -1,1 +1,4 @@
-void main() { int a; }
+void main() {
+    int beta123_c;
+    float val = 13.78;
+}

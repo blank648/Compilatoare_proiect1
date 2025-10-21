@@ -3,6 +3,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <cctype>
 
 //folosim o enumerare pentru a defini tipurile posibile de tokeni
 enum class TokenType {
@@ -11,6 +12,7 @@ enum class TokenType {
     INT_CONSTANT,//constanta intreaga
     FLOAT_CONSTANT,//constanta reala
     OPERATOR,//+,++,==
+    DELIMITATOR,
     COMMENT,//comentariu: /*...*/
     ERROR,//token individual sau eroare lexicala
     END_OF_FILE//token pentru sf fisierului
@@ -18,7 +20,6 @@ enum class TokenType {
 
 //structura de date pentru analizorul lexical
 //fiecare bucata de cod pe care o idnetificam este stocata aici
-
 struct Token {
     std::string lexeme;//sir de caractere efectiv
     TokenType type;//tip token
@@ -40,6 +41,8 @@ std::string tokenTypeToString(TokenType type) {
             return "float_constant";
         case TokenType::OPERATOR:
             return "operator";
+        case TokenType::DELIMITATOR:
+            return "delimitator";
         case TokenType::COMMENT:
             return "comment";
         case TokenType::ERROR:
@@ -52,7 +55,79 @@ std::string tokenTypeToString(TokenType type) {
     }
 }
 
-Token getNextToken(const std::string& source, int& position, int& current_line);
+Token scanIdentifierOrKeyword( const std::string&source, int& position, int line ) {
+    int start_pos = position;
+    while( position < source.length() && isalnum(source[position]) || source[position] == '_' ) {
+        position++;
+    }
+    //extragem lexema
+    std::string lexeme = source.substr(start_pos, position - start_pos);
+    //cuvinte cheie cunoscute
+    const std::vector<std::string> keywords = {"void", "main", "int", "if", "else", "while"};
+
+    if (std::find(keywords.begin(), keywords.end(), lexeme) != keywords.end()) {
+        return {lexeme, TokenType::KEYWORD, line, line};
+    }
+
+    return {lexeme, TokenType::IDENTIFIER, line, line};
+}
+
+Token scanNumber( const std::string&source, int& position, int line ) {
+    int start_pos = position;
+    bool is_float = false;
+
+    while( position < source.length() && isdigit(source[position]) ) {
+        position++;
+    }
+
+    if(position + 1 < source.length() && source[position + 1] == '.') {
+        if( position + 1 < source.length() && isdigit(source[position + 1]) ) {
+            is_float = true;
+            position++;
+            while(position < source.length() && isdigit(source[position]) ) {
+                position++;
+            }
+        }
+    }
+    std::string lexeme = source.substr(start_pos, position - start_pos);
+    TokenType type = is_float ? TokenType::FLOAT_CONSTANT : TokenType::INT_CONSTANT;
+    return {lexeme, type, line, line};
+}
+
+Token getNextToken(const std::string& source, int& position, int& current_line) {
+    //1.sar peste spatii, tab-uri si linii noi
+    while( position < source.length() && isspace(source[position]) ) {
+        if( source[position] == '\n') {
+            current_line++;
+        }
+        position++;
+    }
+
+    if( position >= source.length() ) {
+        return {"", TokenType::END_OF_FILE, current_line, current_line};
+    }
+
+    char current_char = source[position];
+
+    //verifica daca e un identificator sau cuvant cheie ( incepe cu litera sau _ )
+    if(isalpha(current_char) || current_char == '_') {
+        return scanIdentifierOrKeyword(source, position, current_line);
+    }
+
+    if(isdigit(current_char)) {
+        return scanNumber(source, position, current_line);
+    }
+
+    if(current_char == '{' || current_char == '}' || current_char == '[' || current_char == ']' || current_char == '(' || current_char == ')' || current_char == ';') {
+        position++;
+        return {std::string(1, current_char), TokenType::DELIMITATOR, current_line, current_line};
+    }
+
+    position++;
+    std::cerr << "Eroare lexicala la linia " << current_line << ": Caracter necunoscut " << current_char << std::endl;
+    return {std::string(1, current_char), TokenType::ERROR, current_line, current_line};
+
+}
 
 int main() {
     //test pentru functionare token
@@ -67,9 +142,8 @@ int main() {
     std::cout << tokenTypeToString(exemplu_token.type) << std::endl;
     std::cout << exemplu_token.start_line << std::endl;*/
 
-    //1.citirea fisierului de intrare
     std::ifstream inputFile("input.txt");
-    //verificam daca se deschide fisierul
+
     if(!inputFile.is_open()) {
         std::cerr << "Error opening file" << std::endl;
         return -1;
@@ -92,14 +166,17 @@ int main() {
     Token token;
     while ((token = getNextToken(sourceCode, position, currentLine)).type != TokenType::END_OF_FILE) {
         //afisam informatiile despre token
-        std::cout << "'" << token.lexeme << ";"
-        << tokenTypeToString(token.type) << ";"
-        << token.lexeme.length() << ";";
+        if( token.type != TokenType::ERROR ) {
+            std::cout << "'" << token.lexeme << "; "
+            << tokenTypeToString(token.type) << "; "
+            << token.lexeme.length() << "; "
+            << "linia " << token.start_line << std::endl;
 
-        if (token.start_line == token.end_line) {
-            std::cout << "linia " << token.start_line << std::endl;
-        }else {
-            std::cout << "liniile " << token.start_line << "-" << token.end_line << std::endl;
+            if (token.start_line == token.end_line) {
+                std::cout << "linia " << token.start_line << std::endl;
+            }else {
+                std::cout << "liniile " << token.start_line << "-" << token.end_line << std::endl;
+            }
         }
 
     }
@@ -108,7 +185,7 @@ int main() {
 
     return 0;
 }
-
+/*
 Token getNextToken(const std::string& source, int& position, int& current_line) {
     if(position >= source.length()) {
         return {"", TokenType::END_OF_FILE, current_line, current_line};
@@ -117,4 +194,4 @@ Token getNextToken(const std::string& source, int& position, int& current_line) 
     position = source.length();
 
     return {"placeholder", TokenType::IDENTIFIER, 1, 1};
-}
+}*/
