@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string.h>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -76,19 +77,27 @@ Token scanNumber( const std::string&source, int& position, int line ) {
     int start_pos = position;
     bool is_float = false;
 
-    while( position < source.length() && isdigit(source[position]) ) {
-        position++;
-    }
-
-    if(position < source.length() && source[position] == '.') {
-        if( position + 1 < source.length() && isdigit(source[position + 1]) ) {
-            is_float = true;
+    if (source[position] == '.' && position + 1 < source.length() && isdigit(source[position + 1])) {
+        is_float = true;
+        position++; // consum punctul
+        while (position < source.length() && isdigit(source[position])) {
             position++;
-            while(position < source.length() && isdigit(source[position]) ) {
+        }
+    } else { // numere normale
+        while (position < source.length() && isdigit(source[position])) {
+            position++;
+        }
+        if (position < source.length() && source[position] == '.') {
+            if (position + 1 < source.length() && isdigit(source[position + 1])) {
+                is_float = true;
                 position++;
+                while (position < source.length() && isdigit(source[position])) {
+                    position++;
+                }
             }
         }
     }
+
     std::string lexeme = source.substr(start_pos, position - start_pos);
     TokenType type = is_float ? TokenType::FLOAT_CONSTANT : TokenType::INT_CONSTANT;
     return {lexeme, type, line, line};
@@ -152,7 +161,7 @@ Token scanComment(const std::string& source, int& position, int& currentLine) {
         std::string lexeme = source.substr(start_pos, position - start_pos);
         return {lexeme, TokenType::COMMENT, start_line, currentLine};
     }
-    // doaroperatorul /
+    // doar operatorul /
     position++;
     return {"/", TokenType::OPERATOR, start_line, start_line};
 }
@@ -197,10 +206,20 @@ Token getNextToken(const std::string& source, int& position, int& current_line) 
         return scanOperator(source, position, current_line);
     }
 
-    std::cerr << "Eroare lexicala la linia " << current_line << ": Caracter necunoscut " << current_char << std::endl;
-    position++;
-    return {std::string(1, current_char), TokenType::ERROR, current_line, current_line};
-
+    // --- gestionarea avansata a erorilor ---
+    int error_start_pos = position;
+    // consumam caractere până la următorul spațiu, delimitator sau operator
+    while (position < source.length() && !isspace(source[position]) &&
+           !strchr("(){};=+-*/", source[position])) {
+        position++;
+           }
+    // Dacă nu am avansat, forțăm avansarea cu un caracter pentru a evita bucle infinite
+    if (position == error_start_pos) {
+        position++;
+    }
+    std::string errorLexeme = source.substr(error_start_pos, position - error_start_pos);
+    std::cerr << "Eroare Lexicala la linia " << current_line << ": Secventa necunoscuta '" << errorLexeme << "'" << std::endl;
+    return {errorLexeme, TokenType::ERROR, current_line, current_line};
 }
 
 int main() {
